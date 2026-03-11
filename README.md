@@ -179,6 +179,86 @@ Some existing AWS resources are referenced rather than managed:
 
 ---
 
+## Versioning Strategy
+
+HwHub は [Semantic Versioning](https://semver.org/) に基づいてバージョンを管理しています。
+
+### バージョン形式
+
+| 種別 | 形式 | 例 | 説明 |
+|------|------|----|------|
+| PRD リリース | `vMAJOR.MINOR.PATCH` | `v1.2.0` | git tag がそのままバージョンになる |
+| STG ビルド | `vMAJOR.MINOR.PATCH-stg.N` | `v1.2.0-stg.3` | 直前のタグから N コミット後のビルド |
+| ローカル開発 | `local` | `local` | 環境変数未設定時のデフォルト値 |
+
+### バージョンアップルール
+
+| 変更種別 | 上げるバージョン | 例 |
+|----------|------------------|----|
+| 破壊的変更（API非互換・DB大規模変更） | MAJOR | `v1.0.0` → `v2.0.0` |
+| 機能追加（feature リリース） | MINOR | `v1.0.0` → `v1.1.0` |
+| バグ修正のみ | PATCH | `v1.0.0` → `v1.0.1` |
+
+### リリースフロー
+
+```mermaid
+flowchart LR
+    Commit["main への push"]
+    STG["STG deploy\n(stg-SHA タグ)"]
+    Check["STG 動作確認"]
+    Tag["git tag vX.Y.Z"]
+    PRD["PRD deploy\n(prd-vX.Y.Z タグ)"]
+
+    Commit --> STG
+    STG --> Check
+    Check --> Tag
+    Tag --> PRD
+```
+
+### リポジトリ別バージョン管理
+
+各リポジトリのタグは独立して管理されます。  
+PATCH リリースではフロントエンドのみ・バックエンドのみのデプロイが発生するため、  
+アプリ情報画面ではフロントとAPIのバージョンを個別に表示しています。
+
+| リポジトリ | タグ管理 | CI/CDトリガー |
+|------------|----------|---------------|
+| hw-hub-frontend | 独立タグ | main push → STG / git tag → PRD |
+| hw-hub-backend | 独立タグ | main push → STG / git tag → PRD |
+| hw-hub-batch | 独立タグ | main push → STG / git tag → PRD |
+
+### バージョン情報の伝搬
+
+```mermaid
+flowchart LR
+    Tag["git tag / git describe"]
+    Actions["GitHub Actions"]
+    Backend["Backend\nAPP_VERSION 環境変数"]
+    Batch["Batch\nAPP_VERSION 環境変数"]
+    Frontend["Frontend\nVITE_APP_VERSION\nビルド時埋め込み"]
+    API["GET /actuator/info"]
+    UI["アプリ情報画面"]
+
+    Tag --> Actions
+    Actions --> Backend
+    Actions --> Batch
+    Actions --> Frontend
+    Backend --> API
+    API --> UI
+    Frontend --> UI
+```
+
+### ECR イメージタグ規則
+
+| 環境 | タグ形式 | 例 |
+|------|----------|----|
+| STG（コミット単位） | `stg-${GITHUB_SHA}` | `stg-abc1234` |
+| STG（最新） | `stg-latest` | `stg-latest` |
+| PRD（バージョン単位） | `prd-vX.Y.Z` | `prd-v1.2.0` |
+| PRD（最新） | `prd-latest` | `prd-latest` |
+
+---
+
 ## Future Roadmap
 
 Planned improvements:
