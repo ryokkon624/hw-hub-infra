@@ -1,7 +1,7 @@
 # Housework Hub (HwHub)
 
 ![Java](https://img.shields.io/badge/Java-21-orange)
-![SpringBoot](https://img.shields.io/badge/SpringBoot-3.x-brightgreen)
+![SpringBoot](https://img.shields.io/badge/SpringBoot-4.x-brightgreen)
 ![Vue](https://img.shields.io/badge/Vue-3-42b883)
 ![Terraform](https://img.shields.io/badge/Terraform-managed-blue)
 ![Coverage](https://img.shields.io/badge/coverage-95%25-brightgreen)
@@ -19,6 +19,7 @@ Housework Hub（HwHub）は、家庭内の家事・買い物・メンバー管�
 - **hw-hub-frontend** : フロントエンド（Vue 3 + Vite + TypeScript）
 - **hw-hub-database** : DBスキーマ・Flywayマイグレーション管理
 - **hw-hub-infra** : AWSインフラ（Terraform）
+- **hw-hub-knowledge** : AIサポートナレッジ（S3同期）
 
 ---
 
@@ -58,8 +59,12 @@ flowchart LR
     Scheduler["EventBridge Scheduler"]
     ECSBatch["ECS (Batch Task)"]
     RDS["RDS (MySQL)"]
+    S3Knowledge["S3 (Knowledge)"]
+    ClaudeAPI["Claude API"]
     Scheduler --> ECSBatch
     ECSBatch --> RDS
+    ECSBatch --> S3Knowledge
+    ECSBatch --> ClaudeAPI
 ```
 
 ---
@@ -68,7 +73,7 @@ flowchart LR
 
 ### Backend
 - Java 21
-- Spring Boot 3.x
+- Spring Boot 4.x
 - MyBatis + MyBatis Generator
 - Flyway
 - MySQL
@@ -100,6 +105,7 @@ flowchart LR
 | [hw-hub-frontend](https://github.com/ryokkon624/hw-hub-frontend) | Web UI |
 | [hw-hub-database](https://github.com/ryokkon624/hw-hub-database) | Flyway database schema |
 | [hw-hub-infra](https://github.com/ryokkon624/hw-hub-infra) | Terraform infrastructure |
+| [hw-hub-knowledge](https://github.com/ryokkon624/hw-hub-knowledge) | AI support knowledge base (S3 sync) |
 
 ---
 
@@ -113,10 +119,12 @@ Backend["hw-hub-backend"]
 Batch["hw-hub-batch"]
 DB["hw-hub-database"]
 Infra["hw-hub-infra"]
+Knowledge["hw-hub-knowledge"]
 
 Frontend --> Backend
 Backend --> DB
 Batch --> DB
+Knowledge --> Batch
 Infra --> Backend
 Infra --> Batch
 ```
@@ -264,7 +272,6 @@ flowchart LR
 Planned improvements:
 
 - mobile application (Capacitor)
-- push notifications
 - analytics dashboard
 - expanded multi-language support
 

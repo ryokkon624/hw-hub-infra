@@ -56,3 +56,4 @@ variable "batch_task_role_arn" { type = string }
 variable "batch_execution_role_arn" { type = string }
 
 variable "batch_datasource_password_secret_arn" { type = string }
+variable "claude_api_key_secret_arn" { type = string }
