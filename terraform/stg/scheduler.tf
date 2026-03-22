@@ -34,6 +34,13 @@ locals {
       tz   = "UTC"
       cmd  = ["--spring.batch.job.name=invitationExpireJob"]
     }
+
+    inquiry_ai_reply_hourly_45_jst = {
+      name = "hwhub-batch-stg-inquiry-ai-reply-hourly-45-jst"
+      cron = "cron(45 * * * ? *)"
+      tz   = "Etc/GMT-9"
+      cmd  = ["--spring.batch.job.name=inquiryAiReplyJob"]
+    }
   }
 }
 
