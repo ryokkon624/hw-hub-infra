@@ -14,8 +14,9 @@ resource "aws_cloudwatch_metric_alarm" "tg_unhealthy_host" {
   statistic   = "Maximum"
   period      = 60
 
-  evaluation_periods  = 1
-  datapoints_to_alarm = 1
+  # デプロイ中の一時的なコンテナ入れ替えでは発火しないよう3分連続に変更
+  evaluation_periods  = 3
+  datapoints_to_alarm = 3
   threshold           = 1
   comparison_operator = "GreaterThanOrEqualToThreshold"
 
@@ -47,8 +48,9 @@ resource "aws_cloudwatch_metric_alarm" "alb_elb_5xx" {
   statistic   = "Sum"
   period      = 60
 
-  evaluation_periods  = 1
-  datapoints_to_alarm = 1
+  # ALB側の5xxは重大なので1分のままにするが3連続に変更
+  evaluation_periods  = 3
+  datapoints_to_alarm = 3
   threshold           = 1
   comparison_operator = "GreaterThanOrEqualToThreshold"
 
@@ -79,8 +81,9 @@ resource "aws_cloudwatch_metric_alarm" "alb_target_5xx" {
   statistic   = "Sum"
   period      = 60
 
-  evaluation_periods  = 1
-  datapoints_to_alarm = 1
+  # デプロイ中の一時的な5xxでは発火しないよう3分連続に変更
+  evaluation_periods  = 3
+  datapoints_to_alarm = 3
   threshold           = 5
   comparison_operator = "GreaterThanOrEqualToThreshold"
 
