@@ -2,51 +2,38 @@
 
 このリポジトリは **HwHub の AWS インフラを Terraform で管理するためのリポジトリ**です。
 
----
-
-# 概要
-
-現在の STG 環境は、**既存リソースを一部参照しつつ、ECS / Scheduler / 監視などを Terraform で管理する構成**です。  
-当初想定していた `stg-core / stg-ephemeral` の分離は採用せず、**実運用に合わせて単一の STG Terraform ディレクトリで管理**しています。
+設計方針の詳細は [terraform_structure_policy.md](./terraform_structure_policy.md) を参照してください。
 
 ---
 
-# Architecture
+## 概要
 
-## STG AWS Architecture
+STG 環境は **Ephemeral 構成**で管理しています。  
+使用するときだけ `terraform apply` で起動し、使わないときは `terraform destroy` で削除することでコストを最小化します。
+
+| 状態 | 日次コスト（概算） |
+|------|----------------|
+| apply（起動中） | ~$5.71/日（大半がNATゲートウェイ） |
+| destroy（停止中） | ~$0.09/日（RDS ストレージのみ） |
+
+---
+
+## Architecture
 
 ```mermaid
 flowchart LR
 
     User["User"]
-
-    CF["CloudFront
-(existing)"]
-
-    S3FE["S3 Frontend
-(existing)"]
-
-    ALB["Application Load Balancer
-(existing)"]
-
-    TG["Target Group
-hwhub-backend-stg-ephem-tg"]
-
-    ECS["ECS Fargate Service
-hwhub-backend-stg-ephem"]
-
-    RDS["RDS MySQL
-(existing)"]
-
+    CF["CloudFront\n(existing)"]
+    S3FE["S3 Frontend\n(existing)"]
+    ALB["ALB\n(Terraform管理)"]
+    TG["Target Group\nhwhub-backend-stg-ephem-tg"]
+    ECS["ECS Fargate Service\nhwhub-backend-stg-ephem"]
+    RDS["RDS MySQL\n(existing)"]
     Scheduler["EventBridge Scheduler"]
-
-    Batch["ECS RunTask
-hwhub-batch"]
-
+    Batch["ECS RunTask\nhwhub-batch"]
     CW["CloudWatch"]
-
-    SNS["SNS Topic
-hwhub-stg-alerts"]
+    SNS["SNS Topic\nhwhub-stg-alerts"]
 
     User --> CF
     CF --> S3FE
@@ -60,116 +47,74 @@ hwhub-stg-alerts"]
 
     TG -.metrics.-> CW
     ALB -.metrics.-> CW
-
     CW --> SNS
 ```
 
-## Terraform Structure
+---
 
-```mermaid
-flowchart TB
+## 管理対象
 
-    TF["terraform/stg"]
+`terraform apply` / `terraform destroy` で制御されるリソース
 
-    NET["networking
-nat.tf
-routes.tf
-sg.tf
-sg_rules.tf"]
+| リソース | ファイル |
+|---------|---------|
+| ALB / ALB Security Group | alb.tf / sg.tf |
+| ALB Listeners（HTTP/HTTPS） | alb.tf |
+| Target Group | alb.tf |
+| Route 53 A Record | alb.tf |
+| ECS Cluster | ecs_cluster.tf |
+| ECS Backend Task Definition / Service | ecs_task_backend.tf / ecs_service_backend.tf |
+| ECS Batch Task Definition | ecs_task_batch.tf |
+| EventBridge Scheduler | scheduler.tf |
+| CloudWatch Log Groups | logs.tf / log_group_batch.tf |
+| CloudWatch Alarms | alarm.tf |
+| Security Group rules | sg_rules.tf / rds_sg_rules.tf |
+| Route table associations | routes.tf |
 
-    ALBTF["load balancer
-alb.tf
-listener_rules.tf"]
+## Terraform が管理していないもの
 
-    ECSBACK["ecs backend
-ecs_cluster.tf
-ecs_service_backend.tf
-ecs_task_backend.tf
-logs_backend.tf"]
+data source として参照、または既存リソースとして扱うもの
 
-    BATCHTF["batch
-ecs_task_batch.tf
-logs_batch.tf"]
-
-    SCHED["scheduler
-scheduler.tf"]
-
-    MON["monitoring
-alarm.tf
-sns.tf"]
-
-    TF --> NET
-    TF --> ALBTF
-    TF --> ECSBACK
-    TF --> BATCHTF
-    TF --> SCHED
-    TF --> MON
-```
+- RDS MySQL
+- ACM Certificate（`var.certificate_arn` で参照）
+- ECR Repository
+- Secrets Manager
+- SNS Topic
+- S3（Frontend / ファイルストレージ / ナレッジ）
+- CloudFront
+- VPC / Subnets
+- Route 53 Hosted Zone
 
 ---
 
-# 管理対象
-
-Terraform により管理している主なリソース
-
-- NAT Gateway / EIP
-- Route
-- Security Group / Security Group Rule
-- ephem Target Group
-- ECS Cluster
-- ECS Backend Task Definition
-- ECS Backend Service
-- ECS Batch Task Definition
-- EventBridge Scheduler
-- CloudWatch Log Group
-- CloudWatch Alarm
-
----
-
-# Terraform が管理していないもの
-
-既存リソースとして参照しているもの
-
-- 既存 ALB
-- 既存 ACM Certificate
-- 既存 RDS
-- 既存 ECR Repository
-- 既存 Secrets Manager
-- 既存 SNS Topic
-- 既存 S3（Frontend / file storage）
-- 既存 CloudFront
-
-これらは Terraform では **data source として参照する**、または **運用対象外の既存リソース**として扱います。
-
----
-
-# ディレクトリ構成
-
-例
+## ディレクトリ構成
 
 ```text
-terraform/stg
+terraform/stg/
 
-provider.tf
+main.tf
+providers.tf
 variables.tf
 terraform.tfvars
 outputs.tf
 
-nat.tf
-routes.tf
-sg.tf
-sg_rules.tf
+nat.tf                          # NAT Gateway + EIP
+routes.tf                       # Route table associations
+sg.tf                           # ALB Security Group
+sg_rules.tf                     # ECS SG rules
+rds_sg_rules.tf                 # RDS inbound rules
 
-alb.tf
-listener_rules.tf
+alb.tf                          # ALB + TG + Listeners + Route53 A record
+listeners_rule_ephem_assoc.tf   # Listener rule
 
 ecs_cluster.tf
 ecs_task_backend.tf
 ecs_service_backend.tf
-logs_backend.tf
+logs.tf
 
 ecs_task_batch.tf
-logs_batch.tf
+log_group_batch.tf
+
 scheduler.tf
 
 alarm.tf
@@ -178,52 +123,65 @@ sns.tf
 
 ---
 
-# 運用方針
+## Terraform 操作
 
-## Backend デプロイ
+```bash
+# 初期化（初回のみ）
+terraform init
+
+# 差分確認
+terraform plan
+
+# 起動
+terraform apply
+
+# 停止（コスト削減）
+terraform destroy
+```
+
+> **注意:** `terraform apply` 中は一時的に CloudWatch Alarm が発報する場合があります。
+
+---
+
+## 運用方針
+
+### STG 環境の起動・停止
+
+開発・動作確認が終わったら `terraform destroy` で停止してください。  
+RDS は destroy しても残りますが、AWS コンソールから手動停止するとさらにコストを削減できます（インスタンス料金 → 無料）。  
+RDS は7日後に自動再起動されるため、長期停止する場合は週1回手動停止が必要です。
+
+### Backend デプロイ
 
 GitHub Actions により以下を実施します。
 
 1. Docker image build
-2. ECR push
+2. ECR push（`stg-${GITHUB_SHA}` + `stg-latest`）
 3. ECS Service 更新
 
-Terraform 側では `aws_ecs_service.backend` に `ignore_changes = [task_definition]` を設定し、  
-**Backend の task definition revision 切替は GitHub Actions 側で行う**前提にしています。
+Terraform 側では `aws_ecs_service.backend` に `ignore_changes = [task_definition]` を設定しており、  
+**task definition の revision 切替は GitHub Actions 側で行います。**
 
-## Batch デプロイ
+### Batch デプロイ
 
 Batch は `stg-latest` イメージを参照する構成です。
 
 - GitHub Actions: ECR push
-- EventBridge Scheduler: ECS RunTask 実行
+- EventBridge Scheduler: 毎時 ECS RunTask で起動
 - Terraform: Scheduler / TaskDefinition / Networking / Monitoring 管理
 
 ---
 
-# Terraform 操作
+## 注意点
 
-```bash
-terraform init
-terraform plan
-terraform apply
-```
+- `terraform apply` 時に ALB と Route 53 A レコードが作成されます
+- `terraform destroy` 時に ALB・リスナー・TG・Route 53 A レコードが削除されます
+- RDS / ACM / ECR / S3 / CloudFront は destroy の影響を受けません
 
 ---
 
-# 注意点
-
-- Backend Service は既存 ALB 配下の ephem Target Group を利用
-- Batch は EventBridge Scheduler から ECS RunTask で起動
-- Terraform apply 中は一時的に alarm が発報する可能性あり
-- old cluster / old target group は削除済み
-- 既存 ALB / RDS / CloudFront / S3 は Terraform の直接管理対象外
-
----
-
-# 今後の拡張候補
+## 今後の拡張候補
 
 - module 化
 - PRD 用ディレクトリ分離
 - 監視項目追加（CPU / Memory / RDS / Scheduler failure）
-- README / Runbook 充実
