@@ -7,11 +7,11 @@ output "nat_eip_public_ip" {
 }
 
 output "alb_dns_name" {
-  value = data.aws_lb.api.dns_name
+  value = aws_lb.api.dns_name
 }
 
 output "alb_arn" {
-  value = data.aws_lb.api.arn
+  value = aws_lb.api.arn
 }
 
 output "backend_service_name" {
