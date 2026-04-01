@@ -24,7 +24,7 @@ resource "aws_cloudwatch_metric_alarm" "tg_unhealthy_host" {
 
   dimensions = {
     TargetGroup  = aws_lb_target_group.backend_ephem.arn_suffix
-    LoadBalancer = data.aws_lb.api.arn_suffix
+    LoadBalancer = aws_lb.api.arn_suffix
   }
 
   alarm_actions = [data.aws_sns_topic.stg_alerts.arn]
@@ -57,7 +57,7 @@ resource "aws_cloudwatch_metric_alarm" "alb_elb_5xx" {
   treat_missing_data = "notBreaching"
 
   dimensions = {
-    LoadBalancer = data.aws_lb.api.arn_suffix
+    LoadBalancer = aws_lb.api.arn_suffix
   }
 
   alarm_actions = [data.aws_sns_topic.stg_alerts.arn]
@@ -91,7 +91,7 @@ resource "aws_cloudwatch_metric_alarm" "alb_target_5xx" {
 
   dimensions = {
     TargetGroup  = aws_lb_target_group.backend_ephem.arn_suffix
-    LoadBalancer = data.aws_lb.api.arn_suffix
+    LoadBalancer = aws_lb.api.arn_suffix
   }
 
   alarm_actions = [data.aws_sns_topic.stg_alerts.arn]

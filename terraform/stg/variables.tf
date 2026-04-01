@@ -14,8 +14,6 @@ variable "private_route_table_ids" {
 
 variable "rds_security_group_id" { type = string }
 
-variable "alb_arn" { type = string }
-
 variable "backend_target_group_arn" { type = string }
 
 variable "certificate_arn" { type = string }
