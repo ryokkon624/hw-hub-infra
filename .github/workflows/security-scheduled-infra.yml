@@ -1,0 +1,60 @@
+name: security-scheduled-infra
+
+# セキュリティ強化 Phase 2 / 2a（非同期の定期スキャン）。
+#   - iac-scan    … Trivy で Terraform の IaC 設定ミスをスキャン（tfsec は Trivy に統合済み）
+#   - secret-scan … gitleaks で git 履歴を含むシークレット混入を検知
+#
+# PR ゲートではなく schedule 起動の「深掘り検知」。結果は GitHub code scanning(SARIF)
+# に集約し、トリアージ後に hw-hub-manage へ Issue 化して Sprint backlog に合流させる。
+# 手動確認は workflow_dispatch から実行できる。
+
+on:
+  schedule:
+    - cron: "0 0 * * 1" # 毎週月曜 00:00 UTC（= 月曜 09:00 JST）
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  security-events: write # SARIF を code scanning にアップロードするため
+
+jobs:
+  # --- Terraform の IaC 設定ミススキャン（Trivy config / 旧 tfsec 相当） -----
+  iac-scan:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Trivy IaC config scan (SARIF)
+        uses: aquasecurity/trivy-action@master
+        with:
+          scan-type: config
+          scan-ref: terraform
+          format: sarif
+          output: trivy-iac.sarif
+          severity: CRITICAL,HIGH,MEDIUM
+          # 非ブロッキング: 検知してもジョブは落とさず、結果は code scanning へ集約
+          exit-code: "0"
+
+      - name: Upload Trivy SARIF to code scanning
+        if: always()
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: trivy-iac.sarif
+          category: trivy-iac
+
+  # --- シークレット混入スキャン（gitleaks・履歴含む） ----------------------
+  secret-scan:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+        with:
+          fetch-depth: 0 # 履歴も含めてスキャンするため全取得
+
+      # 個人アカウントの public リポジトリは無料（Organization は GITLEAKS_LICENSE が必要）。
+      # 検知時はジョブが失敗し、定期スキャンの警告シグナルとなる。
+      - name: gitleaks (secret scan, history included)
+        uses: gitleaks/gitleaks-action@v2
+        env:
+          GITLEAKS_ENABLE_SUMMARY: "true"
